@@ -1,0 +1,23 @@
+{
+  "name": "@tiny-url/kgs-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "@tiny-url/shared": "*",
+    "drizzle-orm": "^0.30.10",
+    "ioredis": "^5.4.1",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/pg": "^8.11.6",
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.5"
+  }
+}
