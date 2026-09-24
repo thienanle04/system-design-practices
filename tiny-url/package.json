@@ -11,7 +11,14 @@
     "dev:api": "npm run dev --workspace=apps/url-service",
     "dev:kgs": "npm run dev --workspace=apps/kgs-service",
     "dev:analytics": "npm run dev --workspace=apps/analytics-service",
-    "dev:web": "npm run dev --workspace=apps/web"
+    "dev:web": "npm run dev --workspace=apps/web",
+    "test:load:hotkey": "node tests/load/run.mjs 01-hotkey-cache-hit",
+    "test:load:origin": "node tests/load/run.mjs 02-origin-cache-miss",
+    "test:load:penetration": "node tests/load/run.mjs 03-cache-penetration",
+    "test:load:write": "node tests/load/run.mjs 04a-write-steady",
+    "test:load:starvation": "node tests/load/run.mjs 04b-write-starvation",
+    "test:load:mixed": "node tests/load/run.mjs 05-mixed-pipeline-stress",
+    "test:load:verify": "node tests/load/scripts/verify-pipeline.mjs"
   },
   "devDependencies": {
     "typescript": "^5.4.5",

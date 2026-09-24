@@ -1,0 +1,19 @@
+services:
+  k6:
+    image: grafana/k6:latest
+    networks:
+      - default
+    volumes:
+      - ./:/load-test
+      - ./reports:/reports
+    environment:
+      - CDN_URL=http://mock-cdn
+      - LB_URL=http://load-balancer
+      - API_URL=http://load-balancer
+      - K6_SUMMARY_TREND_STATS=avg,min,med,max,p(90),p(95),p(99)
+    working_dir: /load-test
+
+networks:
+  default:
+    name: tiny-url_default
+    external: true
