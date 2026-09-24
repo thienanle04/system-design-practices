@@ -16,11 +16,13 @@ export const urls = pgTable('urls', {
   shortCode: varchar('short_code', { length: 50 }).notNull().unique(),
   originalUrl: text('original_url').notNull(),
   isCustom: boolean('is_custom').default(false).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 }, (table) => {
   return {
     shortCodeIdx: index('idx_urls_short_code').on(table.shortCode),
+    isActiveIdx: index('idx_urls_is_active').on(table.isActive),
   };
 });
 

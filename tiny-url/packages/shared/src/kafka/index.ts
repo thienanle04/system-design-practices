@@ -56,3 +56,17 @@ export function createKafkaConsumer(groupId: string): Consumer {
   const k = getKafkaInstance();
   return k.consumer({ groupId });
 }
+
+export async function checkKafkaHealth(): Promise<{ status: 'UP' | 'DOWN'; error?: string }> {
+  try {
+    const k = getKafkaInstance();
+    const admin = k.admin();
+    await admin.connect();
+    await admin.listTopics();
+    await admin.disconnect();
+    return { status: 'UP' };
+  } catch (err: any) {
+    return { status: 'DOWN', error: err.message };
+  }
+}
+

@@ -56,3 +56,51 @@ export interface UrlAnalyticsResponse {
     referer: string | null;
   }[];
 }
+
+export interface LiveClickPayload {
+  short_code: string;
+  original_url?: string;
+  ip_address?: string;
+  device?: string;
+  browser?: string;
+  os?: string;
+  referer?: string;
+  timestamp: string;
+}
+
+export type HealthStatus = 'Operational' | 'Degraded' | 'Outage';
+
+export interface ServiceNodeInfo {
+  instance: string;
+  status: 'ALIVE' | 'OFFLINE';
+  last_heartbeat: string;
+  age_seconds: number;
+}
+
+export interface SystemHealthSnapshot {
+  status: HealthStatus;
+  timestamp: string;
+  summary: string;
+  dependencies: {
+    postgres: {
+      status: 'UP' | 'DOWN';
+      latency_ms: number;
+      error?: string;
+    };
+    redis: {
+      status: 'UP' | 'DOWN';
+      latency_ms: number;
+      error?: string;
+    };
+    kafka: {
+      status: 'UP' | 'DOWN';
+      error?: string;
+    };
+  };
+  kgs: {
+    key_buffer_depth: number;
+    status: 'HEALTHY' | 'LOW_BUFFER' | 'CRITICAL';
+  };
+  nodes: ServiceNodeInfo[];
+}
+

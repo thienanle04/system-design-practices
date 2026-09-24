@@ -14,11 +14,13 @@ CREATE TABLE IF NOT EXISTS urls (
     short_code VARCHAR(50) UNIQUE NOT NULL,
     original_url TEXT NOT NULL,
     is_custom BOOLEAN DEFAULT FALSE NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls (short_code);
+CREATE INDEX IF NOT EXISTS idx_urls_is_active ON urls (is_active);
 
 CREATE TABLE IF NOT EXISTS url_clicks (
     id BIGSERIAL PRIMARY KEY,

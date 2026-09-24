@@ -24,4 +24,4 @@ export function getDb() {
 }
 
 export * from './schema.js';
-export { eq, sql, desc, and, or } from 'drizzle-orm';
+export { eq, ne, sql, desc, asc, and, or, ilike, count, lte, gte } from 'drizzle-orm';
