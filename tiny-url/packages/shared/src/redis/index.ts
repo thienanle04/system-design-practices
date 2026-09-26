@@ -1,8 +1,23 @@
 import { Redis } from 'ioredis';
 
-import type { LiveClickPayload, SystemHealthSnapshot, ServiceNodeInfo } from '../types/index.js';
+import type { LiveClickPayload, SystemHealthSnapshot, ServiceNodeInfo, AccountTier, RateLimitResult, ApiKeyRecord } from '../types/index.js';
 
 let redisClient: Redis | null = null;
+
+export const RATE_LIMIT_TIERS: Record<AccountTier, { rateLimitPerMinute: number; dailyQuota: number }> = {
+  guest: {
+    rateLimitPerMinute: 5,
+    dailyQuota: 20,
+  },
+  free: {
+    rateLimitPerMinute: 30,
+    dailyQuota: 500,
+  },
+  paid: {
+    rateLimitPerMinute: 300,
+    dailyQuota: 50000,
+  },
+};
 
 export const REDIS_KEYS = {
   AVAILABLE_KEYS_LIST: 'kgs:available_keys',
@@ -11,6 +26,9 @@ export const REDIS_KEYS = {
   DEACTIVATED_SENTINEL: '__DEACTIVATED__',
   HEALTH_SNAPSHOT: 'system:health:snapshot',
   NODE_HEARTBEAT_PREFIX: 'system:node:',
+  API_KEY_PREFIX: 'auth:api_key:',
+  RATE_LIMIT_PREFIX: 'ratelimit:',
+  QUOTA_PREFIX: 'quota:',
 };
 
 export const REDIS_CHANNELS = {
@@ -147,5 +165,106 @@ export async function getActiveNodes(): Promise<ServiceNodeInfo[]> {
   }
 
   return nodes.sort((a, b) => a.instance.localeCompare(b.instance));
+}
+
+export async function getApiKeyFromCache(apiKey: string): Promise<ApiKeyRecord | null | '__NOT_FOUND__'> {
+  const redis = getRedisClient();
+  const raw = await redis.get(`${REDIS_KEYS.API_KEY_PREFIX}${apiKey}`);
+  if (!raw) return null;
+  if (raw === REDIS_KEYS.NOT_FOUND_SENTINEL) return '__NOT_FOUND__';
+  try {
+    return JSON.parse(raw) as ApiKeyRecord;
+  } catch {
+    return null;
+  }
+}
+
+export async function setApiKeyInCache(
+  apiKey: string,
+  record: ApiKeyRecord | null,
+  ttlSeconds: number = 3600
+): Promise<void> {
+  const redis = getRedisClient();
+  if (!record) {
+    await redis.setex(`${REDIS_KEYS.API_KEY_PREFIX}${apiKey}`, 60, REDIS_KEYS.NOT_FOUND_SENTINEL);
+  } else {
+    await redis.setex(`${REDIS_KEYS.API_KEY_PREFIX}${apiKey}`, ttlSeconds, JSON.stringify(record));
+  }
+}
+
+export async function checkRateLimitAndQuota(
+  identifier: string,
+  tier: AccountTier
+): Promise<RateLimitResult> {
+  const redis = getRedisClient();
+  const now = new Date();
+  const minuteSlot = Math.floor(now.getTime() / 60000);
+  const resetRateSeconds = 60 - (Math.floor(now.getTime() / 1000) % 60);
+
+  const daySlot = now.toISOString().slice(0, 10);
+  const endOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const resetQuotaSeconds = Math.max(1, Math.floor((endOfDay.getTime() - now.getTime()) / 1000));
+
+  const rateKey = `${REDIS_KEYS.RATE_LIMIT_PREFIX}${tier}:${identifier}:${minuteSlot}`;
+  const quotaKey = `${REDIS_KEYS.QUOTA_PREFIX}${tier}:${identifier}:${daySlot}`;
+
+  const pipe = redis.pipeline();
+  pipe.incr(rateKey);
+  pipe.expire(rateKey, 65);
+  pipe.incr(quotaKey);
+  pipe.expire(quotaKey, resetQuotaSeconds + 60);
+
+  const results = await pipe.exec();
+  const currentRate = results && results[0] && results[0][1] ? Number(results[0][1]) : 1;
+  const currentQuota = results && results[2] && results[2][1] ? Number(results[2][1]) : 1;
+
+  const config = RATE_LIMIT_TIERS[tier];
+  const limitRate = config.rateLimitPerMinute;
+  const limitQuota = config.dailyQuota;
+
+  const remainingRate = Math.max(0, limitRate - currentRate);
+  const remainingQuota = Math.max(0, limitQuota - currentQuota);
+
+  if (currentRate > limitRate) {
+    return {
+      allowed: false,
+      reason: 'rate_limit',
+      currentRate,
+      limitRate,
+      remainingRate: 0,
+      resetRateSeconds,
+      currentQuota,
+      limitQuota,
+      remainingQuota,
+      retryAfterSeconds: resetRateSeconds,
+    };
+  }
+
+  if (currentQuota > limitQuota) {
+    return {
+      allowed: false,
+      reason: 'quota',
+      currentRate,
+      limitRate,
+      remainingRate,
+      resetRateSeconds,
+      currentQuota,
+      limitQuota,
+      remainingQuota: 0,
+      retryAfterSeconds: resetQuotaSeconds,
+    };
+  }
+
+  return {
+    allowed: true,
+    currentRate,
+    limitRate,
+    remainingRate,
+    resetRateSeconds,
+    currentQuota,
+    limitQuota,
+    remainingQuota,
+    retryAfterSeconds: 0,
+  };
 }
 

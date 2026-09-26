@@ -37,12 +37,26 @@ _Avoid_: Deleted link, dead URL, killed alias
 ### Key Generation & Allocation
 
 **Pre-generated Key**:
-An unused, pre-computed alphanumeric token stored in reserve to be assigned as a Short Code.
+A unique, pre-computed alphanumeric token stored in reserve to be assigned as a Short Code.
 _Avoid_: Seed token, pool key, raw key
 
 **Key Buffer**:
 An in-memory or fast-access queue of Pre-generated Keys ready for immediate allocation without database locks.
 _Avoid_: Token cache, key cache
+
+### Client Entitlements & Rate Limiting
+
+**Account Tier**:
+The entitlement level (`Guest`, `Free Account`, `Paid Account`) assigned to a client determining creation rate limits and daily link allocation quotas.
+_Avoid_: User level, subscription plan, client type
+
+**Creation Rate Limit**:
+The sliding time-window threshold governing how many Short URLs a client can create per minute to protect the Key Buffer.
+_Avoid_: Request throttle, write velocity limit, write rate
+
+**Daily Link Quota**:
+The cumulative maximum count of Short URLs a client may allocate within a calendar day.
+_Avoid_: Link allowance, key ceiling, daily cap
 
 ### Traffic & Analytics
 
@@ -71,4 +85,35 @@ _Avoid_: Pod, worker container, cluster box
 **Key Buffer Depth**:
 The total count of ready-to-assign Pre-generated Keys currently stocked in the fast-access buffer (Redis).
 _Avoid_: Key inventory, pool size, cache count
+
+### Performance & Reliability Testing
+
+**Baseline Performance Profile**:
+The zero-synthetic-latency benchmarking mode used to verify raw application throughput and identify code or database regressions.
+_Avoid_: Localhost test, zero-delay benchmark, bare test
+
+**Emulated WAN Latency**:
+Synthetic network round-trip delay and jitter injected at the network interface layer to model realistic Internet edge and backbone transit times.
+_Avoid_: Simulated lag, network delay mock, artificial delay
+
+**Connection Holding Time**:
+The duration over which a TCP or HTTP connection remains open during request-response cycles under network transit delay, stressing concurrency limits and connection pools.
+_Avoid_: Socket duration, connection retention, idle window
+
+**Resource Budget Profile**:
+A deterministic allocation of vCPU compute quotas and memory limits assigned to Service Nodes and backing datastores to ensure reproducible and objective performance benchmarks.
+_Avoid_: Hardware cap, container throttling config, resource clamp, machine sizing
+
+**Nominal Capacity Envelope**:
+The bounded concurrency and request throughput range within which a Service Node consistently satisfies SLA thresholds under a Resource Budget Profile without triggering CFS CPU throttling.
+_Avoid_: Safe load, average traffic, soft cap, normal load
+
+**Scenario Benchmark History**:
+An isolated, sequential record of performance benchmark runs and SLA verification for a specific test scenario over time.
+_Avoid_: Scenario log, test history file, benchmark dump
+
+**Benchmark Master Index**:
+The centralized index and executive dashboard at the root of the performance reports directory, summarizing the latest benchmark run across all scenarios and linking to individual scenario histories.
+_Avoid_: Central history, master log, root report
+
 

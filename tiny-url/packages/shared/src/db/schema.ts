@@ -54,3 +54,18 @@ export const urlAnalyticsDaily = pgTable('url_analytics_daily', {
     shortCodeIdx: index('idx_url_analytics_daily_code').on(table.shortCode),
   };
 });
+
+export const apiKeys = pgTable('api_keys', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  key: varchar('key', { length: 64 }).notNull().unique(),
+  name: varchar('name', { length: 100 }).notNull(),
+  tier: varchar('tier', { length: 20 }).default('free').notNull(), // 'free', 'paid'
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => {
+  return {
+    keyIdx: index('idx_api_keys_key').on(table.key),
+    tierIdx: index('idx_api_keys_tier').on(table.tier),
+  };
+});
+

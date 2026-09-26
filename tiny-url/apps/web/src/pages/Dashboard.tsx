@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts';
+import {
   Search,
   RefreshCw,
   ExternalLink,
@@ -21,6 +32,10 @@ import {
   Layers,
   Smartphone,
   Laptop,
+  Monitor,
+  Chrome,
+  Apple,
+  Terminal,
   Zap,
   X,
   Server,
@@ -31,6 +46,156 @@ import {
   ShieldCheck,
   TrendingUp,
 } from 'lucide-react';
+
+// Custom Tooltip for Real-time Click Velocity
+const CustomVelocityTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-slate-900 border border-slate-700 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md text-xs space-y-1.5">
+        <div className="text-slate-300 font-mono flex items-center gap-1.5 font-medium text-xs">
+          <Clock className="w-3.5 h-3.5 text-indigo-400" />
+          <span>{data.secondsAgo === 0 ? 'Thời điểm hiện tại (0s)' : `Cách đây ${data.secondsAgo} giây`}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-slate-200 font-semibold text-sm">Click Velocity:</span>
+          <span className="font-mono font-bold text-white text-base">
+            {data.velocity} <span className="text-xs text-slate-300 font-normal">Click Events/giây</span>
+          </span>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+// Custom Tooltip for Daily Clicks
+const CustomDailyTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-slate-900/95 border border-slate-700/80 px-3.5 py-2.5 rounded-xl shadow-2xl backdrop-blur-md text-xs space-y-1">
+        <div className="text-slate-400 font-mono flex items-center gap-1.5">
+          <Calendar className="w-3.5 h-3.5 text-violet-400" />
+          <span>{label}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-violet-400" />
+          <span className="text-slate-300 font-medium">Lượt Click Events:</span>
+          <span className="font-mono font-bold text-violet-300 text-sm">
+            {payload[0].value?.toLocaleString()}
+          </span>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+// Ranked Progress Bar Card for Browser, OS & Device Distributions
+interface RankedItem {
+  name: string;
+  count: number;
+}
+
+const getCategoryIcon = (category: 'browser' | 'os' | 'device', name: string) => {
+  const lower = name.toLowerCase();
+  if (category === 'browser') {
+    if (lower.includes('chrome')) return <Chrome className="w-3.5 h-3.5 text-amber-400" />;
+    if (lower.includes('safari')) return <Apple className="w-3.5 h-3.5 text-blue-400" />;
+    return <Globe className="w-3.5 h-3.5 text-indigo-400" />;
+  }
+  if (category === 'os') {
+    if (lower.includes('mac') || lower.includes('ios')) return <Apple className="w-3.5 h-3.5 text-slate-200" />;
+    if (lower.includes('linux')) return <Terminal className="w-3.5 h-3.5 text-emerald-400" />;
+    return <Laptop className="w-3.5 h-3.5 text-cyan-400" />;
+  }
+  if (lower.includes('mobile') || lower.includes('phone')) return <Smartphone className="w-3.5 h-3.5 text-violet-400" />;
+  return <Monitor className="w-3.5 h-3.5 text-emerald-400" />;
+};
+
+const RankedBreakdownCard: React.FC<{
+  title: string;
+  items: RankedItem[];
+  category: 'browser' | 'os' | 'device';
+}> = ({ title, items, category }) => {
+  const sorted = [...items].sort((a, b) => b.count - a.count);
+  const total = sorted.reduce((sum, item) => sum + item.count, 0);
+  const max = sorted.length > 0 ? Math.max(...sorted.map((i) => i.count), 1) : 1;
+
+  return (
+    <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-3">
+      <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+        <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+          {title}
+        </h5>
+        <span className="text-[11px] font-mono text-slate-500 font-semibold">
+          {total} Click Events
+        </span>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div className="py-6 text-center text-xs text-slate-600">Chưa ghi nhận dữ liệu</div>
+      ) : (
+        <div className="space-y-2.5">
+          {sorted.map((item, index) => {
+            const pctOfTotal = total > 0 ? Math.round((item.count / total) * 100) : 0;
+            const barWidth = Math.max(Math.round((item.count / max) * 100), 4);
+            const rank = index + 1;
+
+            const badgeColor =
+              rank === 1
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                : rank === 2
+                ? 'bg-slate-400/20 text-slate-200 border-slate-400/30'
+                : rank === 3
+                ? 'bg-amber-700/20 text-amber-400 border-amber-700/30'
+                : 'bg-slate-800 text-slate-400 border-slate-700/40';
+
+            const barGradient =
+              rank === 1
+                ? 'bg-gradient-to-r from-violet-500 to-indigo-500'
+                : rank === 2
+                ? 'bg-gradient-to-r from-indigo-500 to-cyan-500'
+                : rank === 3
+                ? 'bg-gradient-to-r from-slate-600 to-slate-500'
+                : 'bg-slate-700';
+
+            return (
+              <div key={item.name} className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center space-x-1.5 min-w-0">
+                    <span
+                      className={`inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold border ${badgeColor}`}
+                    >
+                      {rank}
+                    </span>
+                    <span className="flex-shrink-0">{getCategoryIcon(category, item.name)}</span>
+                    <span className="text-slate-200 font-medium truncate max-w-[110px]" title={item.name}>
+                      {item.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-1.5 text-right font-mono flex-shrink-0">
+                    <span className="text-white font-bold">{item.count}</span>
+                    <span className="text-[11px] text-slate-400">({pctOfTotal}%)</span>
+                  </div>
+                </div>
+
+                <div className="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${barGradient}`}
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 export interface SystemHealthData {
   status: 'Operational' | 'Degraded' | 'Outage';
@@ -448,35 +613,12 @@ export const Dashboard: React.FC = () => {
   const peakVelocity = Math.max(...velocityBuckets, currentVelocity);
   const maxScale = Math.max(peakVelocity, 5);
 
-  // Generate SVG coordinates for 60 data points across 600x120 viewBox
-  const chartPoints = velocityBuckets.map((val, idx) => {
-    const x = (idx / 59) * 600;
-    const y = 108 - (val / maxScale) * 94;
-    return { x, y, val };
-  });
-
-  // Catmull-Rom to Cubic Bezier smooth path
-  const generateSmoothPath = (pts: { x: number; y: number }[]) => {
-    if (pts.length === 0) return '';
-    let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[Math.max(i - 1, 0)];
-      const p1 = pts[i];
-      const p2 = pts[i + 1];
-      const p3 = pts[Math.min(i + 2, pts.length - 1)];
-
-      const cp1x = p1.x + (p2.x - p0.x) / 6;
-      const cp1y = p1.y + (p2.y - p0.y) / 6;
-      const cp2x = p2.x - (p3.x - p1.x) / 6;
-      const cp2y = p2.y - (p3.y - p1.y) / 6;
-
-      d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
-    }
-    return d;
-  };
-
-  const smoothLinePath = generateSmoothPath(chartPoints);
-  const smoothAreaPath = `${smoothLinePath} L 600 110 L 0 110 Z`;
+  // Map 60 1-second velocity buckets for Recharts AreaChart
+  const velocityChartData = velocityBuckets.map((val, idx) => ({
+    secondsAgo: 59 - idx,
+    timeOffset: idx === 59 ? '0s' : `-${59 - idx}s`,
+    velocity: val,
+  }));
   const topShortCodeEntry = Object.entries(shortCodeCounts).sort((a, b) => b[1] - a[1])[0];
 
   return (
@@ -815,160 +957,127 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Real-time Click Velocity Monitor (ADR-0006) */}
-      <div className="p-4 bg-slate-900/80 border border-slate-800 rounded-2xl shadow-lg relative overflow-hidden backdrop-blur-sm">
+      <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl relative overflow-hidden">
         {/* Header Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <Activity className="w-5 h-5 text-emerald-400 animate-pulse" />
             </div>
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+              <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
                 Real-time Click Velocity
-                <span className="text-[10px] font-normal px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-                  60s trượt
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-indigo-300 border border-slate-700">
+                  Cửa sổ trượt 60s
                 </span>
               </h3>
-              <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                <span className={`inline-block w-1.5 h-1.5 rounded-full ${sseConnected ? 'bg-emerald-400 animate-ping' : 'bg-rose-500'}`} />
-                <span>{sseConnected ? 'SSE Live Stream kết nối trực tiếp' : 'Mất kết nối SSE'}</span>
+              <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                <span className={`inline-block w-2 h-2 rounded-full ${sseConnected ? 'bg-emerald-400 animate-ping' : 'bg-rose-500'}`} />
+                <span className="font-medium">{sseConnected ? 'Luồng SSE Live Stream đang đồng bộ trực tiếp' : 'Mất kết nối SSE'}</span>
               </div>
             </div>
           </div>
 
           {/* Quick Stat Badges */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             {/* Current Velocity */}
-            <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs">
-              <Zap className="w-3 h-3 text-amber-400" />
-              <span className="text-slate-400 text-[11px]">Tức thời:</span>
-              <span className="font-mono font-bold text-amber-300">
-                {currentVelocity} <span className="text-[10px] font-normal text-slate-500">c/s</span>
+            <div className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs">
+              <Zap className="w-4 h-4 text-amber-400" />
+              <span className="text-slate-300 font-medium">Tức thời:</span>
+              <span className="font-mono font-bold text-amber-300 text-sm">
+                {currentVelocity} <span className="text-xs font-normal text-slate-400">c/s</span>
               </span>
             </div>
 
             {/* Peak Velocity */}
-            <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs">
-              <TrendingUp className="w-3 h-3 text-indigo-400" />
-              <span className="text-slate-400 text-[11px]">Đỉnh 60s:</span>
-              <span className="font-mono font-bold text-indigo-300">
-                {peakVelocity} <span className="text-[10px] font-normal text-slate-500">c/s</span>
+            <div className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs">
+              <TrendingUp className="w-4 h-4 text-indigo-400" />
+              <span className="text-slate-300 font-medium">Đỉnh 60s:</span>
+              <span className="font-mono font-bold text-indigo-300 text-sm">
+                {peakVelocity} <span className="text-xs font-normal text-slate-400">c/s</span>
               </span>
             </div>
 
             {/* Device Breakdown */}
             {totalDeviceClicks > 0 && (
-              <div className="flex items-center space-x-2 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs">
-                <div className="flex items-center space-x-1 text-slate-300 text-[11px]">
-                  <Laptop className="w-3 h-3 text-slate-400" />
-                  <span>{desktopPct}%</span>
+              <div className="flex items-center space-x-2.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs">
+                <div className="flex items-center space-x-1.5 text-slate-200">
+                  <Laptop className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="font-semibold">{desktopPct}% Desktop</span>
                 </div>
                 <span className="text-slate-700">|</span>
-                <div className="flex items-center space-x-1 text-slate-300 text-[11px]">
-                  <Smartphone className="w-3 h-3 text-slate-400" />
-                  <span>{mobilePct}%</span>
+                <div className="flex items-center space-x-1.5 text-slate-200">
+                  <Smartphone className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="font-semibold">{mobilePct}% Mobile</span>
                 </div>
               </div>
             )}
 
             {/* Top Short Code in Session */}
             {topShortCodeEntry && (
-              <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-indigo-950/40 border border-indigo-800/40 text-xs">
-                <span className="text-indigo-400 text-[11px]">Top:</span>
-                <span className="font-mono font-bold text-indigo-200">
+              <div className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-indigo-950/60 border border-indigo-700/50 text-xs">
+                <span className="text-indigo-300 font-medium">Top:</span>
+                <span className="font-mono font-bold text-white">
                   /{topShortCodeEntry[0]}
                 </span>
-                <span className="text-[10px] px-1 rounded bg-indigo-900/60 text-indigo-300">
-                  {topShortCodeEntry[1]}
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-indigo-900/80 text-indigo-200 font-bold">
+                  {topShortCodeEntry[1]} clicks
                 </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* SVG Area Chart */}
-        <div className="relative w-full h-28 bg-slate-950/80 rounded-xl border border-slate-800/70 p-1.5 overflow-hidden">
-          <svg
-            className="w-full h-full overflow-visible"
-            viewBox="0 0 600 120"
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <linearGradient id="velocityGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#818cf8" stopOpacity="0.45" />
-                <stop offset="50%" stopColor="#6366f1" stopOpacity="0.15" />
-                <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.0" />
-              </linearGradient>
-            </defs>
-
-            {/* Gridlines */}
-            <line x1="0" y1="14" x2="600" y2="14" stroke="#1e293b" strokeDasharray="3 3" strokeWidth="0.8" />
-            <line x1="0" y1="61" x2="600" y2="61" stroke="#1e293b" strokeDasharray="3 3" strokeWidth="0.8" />
-            <line x1="0" y1="108" x2="600" y2="108" stroke="#1e293b" strokeWidth="1" />
-
-            {/* Scale texts on right */}
-            <text x="596" y="16" textAnchor="end" fill="#64748b" fontSize="9" fontFamily="monospace">
-              {maxScale}/s
-            </text>
-            <text x="596" y="63" textAnchor="end" fill="#475569" fontSize="8" fontFamily="monospace">
-              {(maxScale / 2).toFixed(maxScale % 2 === 0 ? 0 : 1)}/s
-            </text>
-            <text x="596" y="105" textAnchor="end" fill="#475569" fontSize="8" fontFamily="monospace">
-              0
-            </text>
-
-            {/* Time labels on bottom */}
-            <text x="6" y="117" fill="#475569" fontSize="8" fontFamily="monospace">
-              -60s
-            </text>
-            <text x="300" y="117" textAnchor="middle" fill="#475569" fontSize="8" fontFamily="monospace">
-              -30s
-            </text>
-            <text x="540" y="117" textAnchor="end" fill="#64748b" fontSize="8" fontFamily="monospace">
-              Bây giờ (0s)
-            </text>
-
-            {/* Filled Area */}
-            <path d={smoothAreaPath} fill="url(#velocityGradient)" />
-
-            {/* Smooth Stroke Line */}
-            <path
-              d={smoothLinePath}
-              fill="none"
-              stroke={peakVelocity > 0 ? '#818cf8' : '#334155'}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-
-            {/* Realtime Dot at latest point */}
-            {chartPoints.length > 0 && (
-              <g>
-                <circle
-                  cx={chartPoints[chartPoints.length - 1].x}
-                  cy={chartPoints[chartPoints.length - 1].y}
-                  r="3.5"
-                  fill="#38bdf8"
-                />
-                {currentVelocity > 0 && (
-                  <circle
-                    cx={chartPoints[chartPoints.length - 1].x}
-                    cy={chartPoints[chartPoints.length - 1].y}
-                    r="8"
-                    fill="#38bdf8"
-                    opacity="0.4"
-                    className="animate-ping"
-                  />
-                )}
-              </g>
-            )}
-          </svg>
+        {/* Recharts Area Chart */}
+        <div className="relative w-full h-72 bg-slate-950 rounded-xl border border-slate-800 p-3 overflow-hidden">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={velocityChartData} margin={{ top: 16, right: 20, left: -6, bottom: 6 }}>
+              <defs>
+                <linearGradient id="velocityAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#818cf8" stopOpacity={0.45} />
+                  <stop offset="50%" stopColor="#6366f1" stopOpacity={0.15} />
+                  <stop offset="100%" stopColor="#4f46e5" stopOpacity={0.0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+              <XAxis
+                dataKey="secondsAgo"
+                stroke="#94a3b8"
+                fontSize={12}
+                fontWeight={500}
+                tickLine={false}
+                axisLine={{ stroke: '#475569' }}
+                reversed={true}
+                ticks={[60, 45, 30, 15, 0]}
+                tickFormatter={(val) => (val === 0 ? 'Bây giờ (0s)' : `-${val}s`)}
+              />
+              <YAxis
+                stroke="#94a3b8"
+                fontSize={12}
+                fontWeight={500}
+                tickLine={false}
+                axisLine={false}
+                domain={[0, maxScale]}
+                allowDecimals={false}
+                tickFormatter={(val) => `${val}/s`}
+              />
+              <Tooltip content={<CustomVelocityTooltip />} />
+              <Area
+                type="monotone"
+                dataKey="velocity"
+                stroke="#818cf8"
+                strokeWidth={2.5}
+                fill="url(#velocityAreaGradient)"
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
 
           {/* Empty State Overlay if 0 clicks in entire window */}
           {peakVelocity === 0 && sessionClickCount === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <span className="text-[11px] text-slate-500 font-medium bg-slate-950/70 px-3 py-1 rounded-full border border-slate-800/80 backdrop-blur-xs flex items-center gap-1.5">
-                <Clock className="w-3 h-3 text-slate-400" />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-4">
+              <span className="text-xs sm:text-sm text-slate-200 font-medium bg-slate-900/90 px-4 py-2 rounded-xl border border-slate-700/80 shadow-lg backdrop-blur-md flex items-center gap-2">
+                <Clock className="w-4 h-4 text-indigo-400" />
                 Đang lắng nghe Click Velocity... Mở một Short URL để kích hoạt xung nhịp thời gian thực!
               </span>
             </div>
@@ -1366,7 +1475,7 @@ export const Dashboard: React.FC = () => {
                 {/* Analytics Summary */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl">
-                    <div className="text-xs text-slate-400">Tổng Clicks</div>
+                    <div className="text-xs text-slate-400">Tổng Lượt Click Events</div>
                     <div className="text-2xl font-bold text-violet-400">{analyticsData.total_clicks}</div>
                   </div>
                   <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl">
@@ -1385,82 +1494,88 @@ export const Dashboard: React.FC = () => {
 
                 {/* Daily Bar Chart */}
                 <div className="space-y-2">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Lượt Click Theo Ngày
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <BarChart3 className="w-4 h-4 text-violet-400" />
+                      Lượt Click Events Theo Ngày
+                    </h4>
+                    <span className="text-xs text-slate-500 font-mono">
+                      {analyticsData.daily_clicks.reduce((acc, curr) => acc + curr.clicks, 0)} Click Events đã ghi nhận
+                    </span>
+                  </div>
+
                   {analyticsData.daily_clicks.length === 0 ? (
-                    <div className="p-6 bg-slate-950 rounded-xl border border-slate-800 text-center text-xs text-slate-600">
-                      Chưa ghi nhận lượt click nào theo ngày
+                    <div className="p-8 bg-slate-950 rounded-2xl border border-slate-800 text-center text-xs text-slate-600">
+                      Chưa ghi nhận lượt Click Event nào theo ngày
                     </div>
                   ) : (
-                    <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-                      {analyticsData.daily_clicks.map((d) => (
-                        <div key={d.date} className="flex items-center space-x-3 text-xs">
-                          <span className="w-24 text-slate-400 font-mono">{d.date}</span>
-                          <div className="flex-1 bg-slate-800 rounded-full h-3 overflow-hidden">
-                            <div
-                              className="bg-violet-500 h-full rounded-full transition-all"
-                              style={{
-                                width: `${Math.min(
-                                  100,
-                                  (d.clicks / Math.max(...analyticsData.daily_clicks.map((x) => x.clicks), 1)) * 100
-                                )}%`,
-                              }}
+                    <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                      <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={analyticsData.daily_clicks}
+                            margin={{ top: 12, right: 12, left: -16, bottom: 4 }}
+                          >
+                            <defs>
+                              <linearGradient id="dailyBarGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.95} />
+                                <stop offset="100%" stopColor="#6366f1" stopOpacity={0.7} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                            <XAxis
+                              dataKey="date"
+                              stroke="#94a3b8"
+                              fontSize={12}
+                              fontWeight={500}
+                              tickLine={false}
+                              axisLine={{ stroke: '#475569' }}
                             />
-                          </div>
-                          <span className="w-8 text-right font-bold text-white">{d.clicks}</span>
-                        </div>
-                      ))}
+                            <YAxis
+                              stroke="#94a3b8"
+                              fontSize={12}
+                              fontWeight={500}
+                              tickLine={false}
+                              axisLine={false}
+                              allowDecimals={false}
+                            />
+                            <Tooltip content={<CustomDailyTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
+                            <Bar
+                              dataKey="clicks"
+                              fill="url(#dailyBarGradient)"
+                              radius={[6, 6, 0, 0]}
+                              name="Click Events"
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* Device & Browser Breakdowns */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {/* Browsers */}
-                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-                    <h5 className="text-xs font-bold text-slate-400 uppercase">Trình duyệt</h5>
-                    <div className="space-y-1.5 text-xs">
-                      {analyticsData.browsers.map((b) => (
-                        <div key={b.name} className="flex justify-between text-slate-300">
-                          <span>{b.name}</span>
-                          <strong className="text-white">{b.count}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* OS */}
-                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-                    <h5 className="text-xs font-bold text-slate-400 uppercase">Hệ điều hành</h5>
-                    <div className="space-y-1.5 text-xs">
-                      {analyticsData.os.map((o) => (
-                        <div key={o.name} className="flex justify-between text-slate-300">
-                          <span>{o.name}</span>
-                          <strong className="text-white">{o.count}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Devices */}
-                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-                    <h5 className="text-xs font-bold text-slate-400 uppercase">Thiết bị</h5>
-                    <div className="space-y-1.5 text-xs">
-                      {analyticsData.devices.map((dev) => (
-                        <div key={dev.name} className="flex justify-between text-slate-300">
-                          <span>{dev.name}</span>
-                          <strong className="text-white">{dev.count}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                {/* Device, Browser & OS Breakdowns */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <RankedBreakdownCard
+                    title="Trình duyệt"
+                    category="browser"
+                    items={analyticsData.browsers}
+                  />
+                  <RankedBreakdownCard
+                    title="Hệ điều hành"
+                    category="os"
+                    items={analyticsData.os}
+                  />
+                  <RankedBreakdownCard
+                    title="Thiết bị"
+                    category="device"
+                    items={analyticsData.devices}
+                  />
                 </div>
 
-                {/* Recent 20 Clicks Audit Log */}
+                {/* Recent 20 Click Events Audit Log */}
                 <div className="space-y-2">
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    20 Lượt Click Gần Nhất
+                    20 Lượt Click Events Gần Nhất
                   </h4>
                   <div className="bg-slate-950 rounded-xl border border-slate-800 overflow-x-auto max-h-[220px]">
                     <table className="w-full text-left text-xs">

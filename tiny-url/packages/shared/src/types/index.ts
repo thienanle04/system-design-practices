@@ -104,3 +104,27 @@ export interface SystemHealthSnapshot {
   nodes: ServiceNodeInfo[];
 }
 
+export type AccountTier = 'guest' | 'free' | 'paid';
+
+export interface ApiKeyRecord {
+  id: number;
+  key: string;
+  name: string;
+  tier: AccountTier;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+export interface RateLimitResult {
+  allowed: boolean;
+  reason?: 'rate_limit' | 'quota';
+  currentRate: number;
+  limitRate: number;
+  remainingRate: number;
+  resetRateSeconds: number;
+  currentQuota: number;
+  limitQuota: number;
+  remainingQuota: number;
+  retryAfterSeconds: number;
+}
+

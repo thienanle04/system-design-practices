@@ -6,12 +6,17 @@ import {
   urls,
   urlClicks,
   urlAnalyticsDaily,
+  apiKeys,
   getAvailableKeyFromRedis,
   getUrlFromCache,
   setUrlInCache,
   setNegativeCache,
   setDeactivatedCache,
   deleteUrlFromCache,
+  getApiKeyFromCache,
+  setApiKeyInCache,
+  checkRateLimitAndQuota,
+  RATE_LIMIT_TIERS,
   REDIS_KEYS,
   REDIS_CHANNELS,
   publishClickEvent,
@@ -33,6 +38,8 @@ import {
   SystemHealthSnapshot,
   LiveClickPayload,
   HealthStatus,
+  AccountTier,
+  ApiKeyRecord,
 } from '@tiny-url/shared';
 
 
@@ -282,8 +289,127 @@ app.get('/api/v1/events/live', async (request, reply) => {
 });
 
 
+// Resolve Client Identity and Account Tier from X-API-Key or IP
+async function resolveRequestTier(request: any): Promise<{
+  tier: AccountTier;
+  identifier: string;
+  apiKeyRecord?: ApiKeyRecord;
+  error?: { status: number; message: string };
+}> {
+  const apiKeyHeader = request.headers['x-api-key'] as string | undefined;
+
+  // Unauthenticated / Guest tier identified by Client IP
+  if (!apiKeyHeader || !apiKeyHeader.trim()) {
+    const clientIp =
+      (request.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ||
+      request.ip ||
+      '127.0.0.1';
+    return {
+      tier: 'guest',
+      identifier: clientIp,
+    };
+  }
+
+  const rawKey = apiKeyHeader.trim();
+  const cached = await getApiKeyFromCache(rawKey);
+
+  if (cached === '__NOT_FOUND__') {
+    return {
+      tier: 'guest',
+      identifier: 'invalid',
+      error: { status: 401, message: 'Invalid or inactive API key' },
+    };
+  }
+
+  if (cached && typeof cached === 'object') {
+    if (!cached.isActive) {
+      return {
+        tier: 'guest',
+        identifier: 'inactive',
+        error: { status: 403, message: 'API key is deactivated' },
+      };
+    }
+    return {
+      tier: cached.tier,
+      identifier: `key_${cached.id}`,
+      apiKeyRecord: cached,
+    };
+  }
+
+  // Cache miss -> Query DB
+  const db = getDb();
+  const [record] = await db
+    .select()
+    .from(apiKeys)
+    .where(eq(apiKeys.key, rawKey))
+    .limit(1);
+
+  if (!record) {
+    await setApiKeyInCache(rawKey, null);
+    return {
+      tier: 'guest',
+      identifier: 'invalid',
+      error: { status: 401, message: 'Invalid or inactive API key' },
+    };
+  }
+
+  const apiKeyRecord: ApiKeyRecord = {
+    id: Number(record.id),
+    key: record.key,
+    name: record.name,
+    tier: record.tier as AccountTier,
+    isActive: record.isActive,
+    createdAt: record.createdAt,
+  };
+
+  await setApiKeyInCache(rawKey, apiKeyRecord, 3600);
+
+  if (!apiKeyRecord.isActive) {
+    return {
+      tier: 'guest',
+      identifier: 'inactive',
+      error: { status: 403, message: 'API key is deactivated' },
+    };
+  }
+
+  return {
+    tier: apiKeyRecord.tier,
+    identifier: `key_${apiKeyRecord.id}`,
+    apiKeyRecord,
+  };
+}
+
 // Create Short URL
 app.post('/api/v1/urls', async (request, reply) => {
+  // 1. Resolve Account Tier & Identity (ADR-0010)
+  const clientInfo = await resolveRequestTier(request);
+  if (clientInfo.error) {
+    return reply.status(clientInfo.error.status).send({
+      error: clientInfo.error.message,
+    });
+  }
+
+  // 2. Enforce Tier-Based Rate Limiting & Daily Quota (ADR-0010)
+  const rateCheck = await checkRateLimitAndQuota(clientInfo.identifier, clientInfo.tier);
+  reply.header('RateLimit-Limit', rateCheck.limitRate);
+  reply.header('RateLimit-Remaining', rateCheck.remainingRate);
+  reply.header('RateLimit-Reset', rateCheck.resetRateSeconds);
+  reply.header('X-Daily-Quota-Limit', rateCheck.limitQuota);
+  reply.header('X-Daily-Quota-Remaining', rateCheck.remainingQuota);
+
+  if (!rateCheck.allowed) {
+    reply.header('Retry-After', rateCheck.retryAfterSeconds);
+    return reply.status(429).send({
+      error:
+        rateCheck.reason === 'quota'
+          ? `Daily URL creation quota reached (${rateCheck.limitQuota} links/day) for ${clientInfo.tier} tier.`
+          : `Creation rate limit exceeded (${rateCheck.limitRate} requests/min) for ${clientInfo.tier} tier.`,
+      tier: clientInfo.tier,
+      reason: rateCheck.reason,
+      retry_after_seconds: rateCheck.retryAfterSeconds,
+    });
+  }
+
   const parseResult = createUrlSchema.safeParse(request.body);
   if (!parseResult.success) {
     return reply.status(400).send({
@@ -330,8 +456,12 @@ app.post('/api/v1/urls', async (request, reply) => {
     if (key) {
       shortCode = key;
     } else {
-      // Fallback if Redis queue temporarily empty
-      shortCode = Math.random().toString(36).substring(2, 9);
+      // Key buffer depleted: Fail-fast with 503 Service Unavailable (ADR-0010)
+      reply.header('Retry-After', 1);
+      return reply.status(503).send({
+        error: 'Key buffer depleted. Pre-generated keys temporarily exhausted under high write burst. Please retry shortly.',
+        system_status: 'Degraded',
+      });
     }
   }
 
@@ -368,6 +498,7 @@ app.post('/api/v1/urls', async (request, reply) => {
       expires_at: inserted.expiresAt ? inserted.expiresAt.toISOString() : null,
       created_at: inserted.createdAt.toISOString(),
       served_by: INSTANCE_NAME,
+      tier: clientInfo.tier,
     });
   } catch (err: any) {
     if (err.code === '23505') {

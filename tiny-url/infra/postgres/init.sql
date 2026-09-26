@@ -46,3 +46,23 @@ CREATE TABLE IF NOT EXISTS url_analytics_daily (
 );
 
 CREATE INDEX IF NOT EXISTS idx_url_analytics_daily_code ON url_analytics_daily (short_code);
+
+CREATE TABLE IF NOT EXISTS api_keys (
+    id BIGSERIAL PRIMARY KEY,
+    key VARCHAR(64) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    tier VARCHAR(20) DEFAULT 'free' NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys (key);
+CREATE INDEX IF NOT EXISTS idx_api_keys_tier ON api_keys (tier);
+
+-- Seed default test API keys
+INSERT INTO api_keys (key, name, tier, is_active)
+VALUES 
+    ('free_demo_key', 'Demo Free Tier Account', 'free', TRUE),
+    ('paid_demo_key', 'Demo Paid Tier Account', 'paid', TRUE)
+ON CONFLICT (key) DO NOTHING;
+

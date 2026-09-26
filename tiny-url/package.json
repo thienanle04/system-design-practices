@@ -8,6 +8,8 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "docker:perf:up": "docker compose -f docker-compose.yml -f docker-compose.resources.yml up -d --build",
+    "docker:perf:down": "docker compose -f docker-compose.yml -f docker-compose.resources.yml down",
     "dev:api": "npm run dev --workspace=apps/url-service",
     "dev:kgs": "npm run dev --workspace=apps/kgs-service",
     "dev:analytics": "npm run dev --workspace=apps/analytics-service",
@@ -18,7 +20,13 @@
     "test:load:write": "node tests/load/run.mjs 04a-write-steady",
     "test:load:starvation": "node tests/load/run.mjs 04b-write-starvation",
     "test:load:mixed": "node tests/load/run.mjs 05-mixed-pipeline-stress",
-    "test:load:verify": "node tests/load/scripts/verify-pipeline.mjs"
+    "test:load:verify": "node tests/load/scripts/verify-pipeline.mjs",
+    "test:load:wan:hotkey": "node tests/load/run-wan.mjs 01-hotkey-cache-hit",
+    "test:load:wan:origin": "node tests/load/run-wan.mjs 02-origin-cache-miss",
+    "test:load:wan:penetration": "node tests/load/run-wan.mjs 03-cache-penetration",
+    "test:load:wan:write": "node tests/load/run-wan.mjs 04a-write-steady",
+    "test:load:wan:starvation": "node tests/load/run-wan.mjs 04b-write-starvation",
+    "test:load:wan:mixed": "node tests/load/run-wan.mjs 05-mixed-pipeline-stress"
   },
   "devDependencies": {
     "typescript": "^5.4.5",
