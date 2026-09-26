@@ -3,5 +3,7 @@ dist/
 .env
 .DS_Store
 *.log
-tests/load/reports/*
-!tests/load/reports/.gitkeep
+tests/load/reports/**/*.html
+tests/load/reports/**/*.json
+tests/load/reports/*.html
+tests/load/reports/*.json

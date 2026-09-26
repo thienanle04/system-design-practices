@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { CDN_URL, LB_URL, THRESHOLDS, SUMMARY_TREND_STATS } from '../config.js';
+import { CDN_URL, LB_URL, THRESHOLDS, SUMMARY_TREND_STATS, getRampingStages, VUS_PROFILE } from '../config.js';
 import { createSummaryHandler } from '../utils/reporter.js';
 
 export const options = {
@@ -8,12 +8,8 @@ export const options = {
   scenarios: {
     mixed_traffic: {
       executor: 'ramping-vus',
-      startVUs: 10,
-      stages: [
-        { duration: '5s', target: 40 },
-        { duration: '20s', target: 80 },
-        { duration: '5s', target: 0 },
-      ],
+      startVUs: 5,
+      stages: getRampingStages(VUS_PROFILE.MIXED, { rampUpSec: '5s', steadySec: '20s', rampDownSec: '5s' }),
       gracefulRampDown: '2s',
     },
   },
@@ -39,7 +35,10 @@ export function setup() {
       original_url: `https://news.ycombinator.com/item?id=${100000 + i}`,
     });
     const res = http.post(`${LB_URL}/api/v1/urls`, payload, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': 'paid_demo_key',
+      },
     });
     if (res.status === 201) {
       codes.push(res.json('short_code'));
@@ -58,7 +57,10 @@ export default function (data) {
       original_url: `https://docs.github.com/en/get-started/${__VU}-${__ITER}-${Date.now()}`,
     });
     const res = http.post(`${LB_URL}/api/v1/urls`, payload, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': 'paid_demo_key',
+      },
       tags: { name: 'Mixed_Write' },
     });
     check(res, {

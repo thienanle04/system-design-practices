@@ -73,9 +73,13 @@ function calculateConfiguredDuration(options) {
 export function createSummaryHandler(scenarioName, scenarioMeta = {}) {
   return function handleSummary(data) {
     const timestamp = getTimestamp();
-    const baseName = `${scenarioName}-${timestamp}`;
-    const htmlPath = `/reports/${baseName}.html`;
-    const jsonPath = `/reports/${baseName}.json`;
+    const networkProfile = (__ENV && __ENV.NETWORK_PROFILE) ? __ENV.NETWORK_PROFILE.toLowerCase() : 'baseline';
+    const isWan = networkProfile === 'wan';
+    const profileLabel = isWan ? 'WAN' : 'BASELINE';
+    const profileSuffix = isWan ? '-wan' : '';
+    const baseName = `${scenarioName}${profileSuffix}-${timestamp}`;
+    const htmlPath = `/reports/${scenarioName}/${baseName}.html`;
+    const jsonPath = `/reports/${scenarioName}/${baseName}.json`;
 
     const metrics = data.metrics || {};
     const reqDuration = metrics.http_req_duration ? metrics.http_req_duration.values : {};
@@ -136,6 +140,8 @@ export function createSummaryHandler(scenarioName, scenarioMeta = {}) {
     const meta = {
       scenarioName,
       title: scenarioMeta.title || scenarioName,
+      networkProfile: profileLabel,
+      isWan,
       targetIngress: scenarioMeta.targetIngress || 'N/A',
       targetLayer: scenarioMeta.targetLayer || 'N/A',
       adr: scenarioMeta.adr || 'N/A',
@@ -364,6 +370,9 @@ export function createSummaryHandler(scenarioName, scenarioMeta = {}) {
         <div class="meta">Timestamp: ${timestamp} | Engine: k6 v2.3+ | Target: ${meta.targetIngress}</div>
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
+        <span class="badge ${isWan ? 'badge-warn' : 'badge-info'}">
+          Profile: ${profileLabel}
+        </span>
         <span class="badge ${slaBadgeClass}">
           SLA: ${slaStatus}
         </span>
@@ -381,6 +390,7 @@ export function createSummaryHandler(scenarioName, scenarioMeta = {}) {
         <table class="spec-table">
           <tbody>
             <tr><td class="spec-label">Scenario</td><td><strong>${meta.title}</strong></td></tr>
+            <tr><td class="spec-label">Network Profile</td><td><span class="badge ${isWan ? 'badge-warn' : 'badge-info'}"><strong>${profileLabel}</strong></span> &nbsp;<em>(${isWan ? 'Emulated WAN via Linux tc netem' : 'Zero-Latency Localhost Baseline'})</em></td></tr>
             <tr><td class="spec-label">Target Ingress</td><td><code class="code-tag">${meta.targetIngress}</code></td></tr>
             <tr><td class="spec-label">Architecture Layer</td><td>${meta.targetLayer}</td></tr>
             <tr><td class="spec-label">ADR Reference</td><td><span class="badge badge-info">${meta.adr}</span></td></tr>
@@ -507,9 +517,10 @@ export function createSummaryHandler(scenarioName, scenarioMeta = {}) {
     // Console output
     const consoleSummary = `
 ================================================================================
-🚀 LOAD TEST SUMMARY: ${meta.title}
+🚀 LOAD TEST SUMMARY: ${meta.title} [Profile: ${profileLabel}]
 ================================================================================
 Timestamp   : ${timestamp}
+Profile     : ${profileLabel} (${isWan ? 'Emulated WAN with tc netem' : 'Localhost 0ms Baseline'})
 Target      : ${meta.targetIngress}
 Layer & ADR : ${meta.targetLayer} (${meta.adr})
 Duration    : ${meta.durationActual} (Configured: ${meta.durationConfigured}) | Max VUs: ${formatNumber(meta.vusMax)}

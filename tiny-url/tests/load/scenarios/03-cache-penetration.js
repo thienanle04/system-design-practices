@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import { check } from 'k6';
 import { Rate } from 'k6/metrics';
-import { LB_URL, SUMMARY_TREND_STATS } from '../config.js';
+import { LB_URL, THRESHOLDS, SUMMARY_TREND_STATS, getRampingStages, VUS_PROFILE } from '../config.js';
 import { createSummaryHandler } from '../utils/reporter.js';
 
 const unexpectedErrors = new Rate('unexpected_errors');
@@ -11,19 +11,12 @@ export const options = {
   scenarios: {
     cache_penetration_attack: {
       executor: 'ramping-vus',
-      startVUs: 10,
-      stages: [
-        { duration: '5s', target: 50 },
-        { duration: '15s', target: 100 },
-        { duration: '5s', target: 0 },
-      ],
+      startVUs: 5,
+      stages: getRampingStages(VUS_PROFILE.NEGATIVE_CACHE),
       gracefulRampDown: '2s',
     },
   },
-  thresholds: {
-    unexpected_errors: ['rate<0.01'],
-    http_req_duration: ['p(95)<30', 'p(99)<80'],
-  },
+  thresholds: THRESHOLDS.NEGATIVE_CACHE,
 };
 
 export const metadata = {

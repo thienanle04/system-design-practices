@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { LB_URL, THRESHOLDS, SUMMARY_TREND_STATS } from '../config.js';
+import { LB_URL, THRESHOLDS, SUMMARY_TREND_STATS, getRampingStages, VUS_PROFILE } from '../config.js';
 import { createSummaryHandler } from '../utils/reporter.js';
 
 export const options = {
@@ -8,12 +8,8 @@ export const options = {
   scenarios: {
     origin_cache_aside: {
       executor: 'ramping-vus',
-      startVUs: 10,
-      stages: [
-        { duration: '5s', target: 40 },
-        { duration: '15s', target: 150 },
-        { duration: '5s', target: 0 },
-      ],
+      startVUs: 5,
+      stages: getRampingStages(VUS_PROFILE.ORIGIN_READ),
       gracefulRampDown: '2s',
     },
   },

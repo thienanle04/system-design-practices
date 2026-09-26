@@ -34,7 +34,7 @@ flowchart TD
     API1 & API2 -.->|"Async Click Events"| Kafka
     Kafka --> Analytics --> Postgres
 
-    K6 -- "Mount Volumes" --> Reports["tests/load/reports/<br/>• Timestamped HTML/JSON<br/>• history.md"]
+    K6 -- "Mount Volumes" --> Reports["tests/load/reports/<br/>• Benchmark Master Index (README.md)<br/>• Scenario Subdirectories"]
 ```
 
 ---
@@ -52,6 +52,71 @@ Mỗi kịch bản kiểm thử đóng vai trò là bằng chứng thực nghi�
 | **04b-write-starvation** | `npm run test:load:starvation` | Load Balancer (`:80`) | Key Buffer Starvation & KGS Self-Healing | [ADR-0001](../../docs/adr/0001-offline-key-pre-generation.md), [ADR-0006](../../docs/adr/0006-sse-and-snapshot-caching-for-observability.md) |
 | **05-mixed-pipeline** | `npm run test:load:mixed` | CDN + LB | 90% Read + 10% Write + Kafka Event Stream | [ADR-0004](../../docs/adr/0004-kafka-event-streaming-for-click-analytics.md) |
 | **Pipeline Audit** | `npm run test:load:verify` | Docker host | Kafka Consumer Lag & Postgres Click Counts | [ADR-0007](../../docs/adr/0007-containerized-load-testing-and-pipeline-reconciliation.md) |
+
+### 🌐 Mô Hình Kiểm Thử Hai Chế Độ (Dual-Profile Architecture - ADR-0009)
+
+Hệ thống hỗ trợ 2 profile hiệu năng độc lập theo [ADR-0009](../../docs/adr/0009-dual-profile-performance-testing-and-wan-emulation.md), được hiệu chuẩn theo **Nominal Capacity Envelope** ([ADR-0011](../../docs/adr/0011-deterministic-resource-budget-profiling.md)):
+
+1. **Profile A (Baseline - Mặc định)**: Không có trễ mạng nhân tạo. Số VUs và SLA được cân chỉnh theo ngân sách `0.5 vCPU` để đo lường hiệu năng thực chất, tránh hiện tượng CFS CPU Throttling làm méo mó đuôi p95/p99:
+
+| Kịch bản Baseline (Profile A) | Lệnh thực thi | Target Ingress | VUs Peak | Ngưỡng SLA Baseline (`p95` / `p99`) |
+|---|---|---|---|---|
+| **01-hotkey-cache-hit** | `npm run test:load:hotkey` | Mock CDN | 40 | `p(95) < 10ms`, `p(99) < 25ms` |
+| **02-origin-cache-miss** | `npm run test:load:origin` | Load Balancer | 50 | `p(95) < 40ms`, `p(99) < 70ms` |
+| **03-cache-penetration** | `npm run test:load:penetration` | Load Balancer | 40 | `p(95) < 25ms`, `p(99) < 50ms` |
+| **04a-write-steady** | `npm run test:load:write` | Load Balancer | 20 | `p(95) < 120ms`, `p(99) < 250ms` |
+| **04b-write-starvation** | `npm run test:load:starvation` | Load Balancer | 80 | `p(95) < 350ms` |
+| **05-mixed-pipeline** | `npm run test:load:mixed` | CDN + LB | 40 | `p(95) < 90ms`, `p(99) < 220ms` |
+
+2. **Profile B (Emulated WAN)**: Sử dụng Linux kernel traffic shaping (`tc netem`) để tiêm độ trễ mạng thực tế:
+   - **Client $\leftrightarrow$ Edge Cache**: 30ms ($\pm$5ms jitter) trên interface `tinyurl-cdn`.
+   - **Edge Cache $\leftrightarrow$ Origin**: 50ms ($\pm$10ms jitter) trên interface `tinyurl-lb`.
+   - Vòng đời được tự động hóa hoàn toàn: runner tiêm rule trước khi k6 chạy và tự động dọn sạch trong khối `finally`.
+
+| Kịch bản WAN (Profile B) | Lệnh thực thi | Target Ingress | VUs Peak | Ngưỡng SLA WAN (`p95` / `p99`) |
+|---|---|---|---|---|
+| **01-hotkey-cache-hit (WAN)** | `npm run test:load:wan:hotkey` | Mock CDN | 120 | `p(95) < 70ms`, `p(99) < 85ms` |
+| **02-origin-cache-miss (WAN)** | `npm run test:load:wan:origin` | Load Balancer | 150 | `p(95) < 200ms`, `p(99) < 250ms` |
+| **03-cache-penetration (WAN)** | `npm run test:load:wan:penetration` | Load Balancer | 120 | `p(95) < 90ms`, `p(99) < 120ms` |
+| **04a-write-steady (WAN)** | `npm run test:load:wan:write` | Load Balancer | 60 | `p(95) < 220ms`, `p(99) < 300ms` |
+| **04b-write-starvation (WAN)** | `npm run test:load:wan:starvation` | Load Balancer | 180 | `p(95) < 450ms` |
+| **05-mixed-pipeline (WAN)** | `npm run test:load:wan:mixed` | CDN + LB | 120 | `p(95) < 200ms`, `p(99) < 280ms` |
+
+> [!TIP]
+> **Quy mô Concurrency động theo Định luật Little (Little's Law)**:
+> Khi kích hoạt Profile WAN, hệ thống tự động scale số VUs tối đa từ 40 lên **120 VUs** để giữ hàng trăm kết nối mở đồng thời (High Connection Holding Time). Bạn có thể tùy biến mức tải này theo 2 cách:
+> ```bash
+> # Cách 1 (Khuyên dùng - chạy trên cả PowerShell và Bash):
+> npm run test:load:wan:hotkey -- 200
+>
+> # Cách 2 (Qua biến môi trường):
+> # Trên Windows PowerShell:
+> $env:VUS=200; npm run test:load:wan:hotkey
+> # Trên Linux / macOS Bash:
+> VUS=200 npm run test:load:wan:hotkey
+> ```
+
+### ⚖️ Hồ Sơ Ngân Sách Tài Nguyên (Resource Budget Profile - ADR-0011)
+
+Để đảm bảo kết quả benchmark diễn ra **khách quan, có thể tái lập (reproducible)** và không phụ thuộc vào số core CPU hay dung lượng RAM khác nhau giữa các máy dev / CI, hệ thống cung cấp file overlay [docker-compose.resources.yml](../../docker-compose.resources.yml) theo [ADR-0011](../../docs/adr/0011-deterministic-resource-budget-profiling.md).
+
+#### Phân bổ định mức vCPU và Memory:
+- **Gateway & CDN**: `mock-cdn` (0.5 vCPU, 256MB), `load-balancer` (0.5 vCPU, 256MB).
+- **Compute Services**: `url-service-1` (0.5 vCPU, 512MB), `url-service-2` (0.5 vCPU, 512MB), `kgs-service` (0.5 vCPU, 256MB), `analytics-service` (0.5 vCPU, 512MB).
+- **Datastores**: `redis` (0.5 vCPU, 256MB), `postgres` (1.0 vCPU, 512MB), `kafka` (1.0 vCPU, 1024MB).
+- **k6 Load Generator**: Không giới hạn (unconstrained) để tránh client-side bottleneck làm lệch kết quả đo.
+- **Tổng ngân sách stack**: `~5.5 vCPU` và `~4GB RAM` (hoạt động an toàn trên Windows WSL2 và Linux CI).
+
+#### Lệnh khởi chạy:
+```bash
+# Khởi động hệ thống với Resource Budget Profile (Khuyên dùng khi đo hiệu năng):
+npm run docker:perf:up
+
+# Dừng stack:
+npm run docker:perf:down
+```
+
+Khi chạy benchmark qua `npm run test:load:*` hoặc `npm run test:load:wan:*`, test runner sẽ tự động kiểm tra `HostConfig.NanoCpus` và hiển thị trạng thái `[Resource Budget Profile: ACTIVE]`.
 
 ---
 
@@ -115,19 +180,21 @@ Mỗi kịch bản kiểm thử đóng vai trò là bằng chứng thực nghi�
 Mỗi lần thực thi k6, hệ thống **không bao giờ ghi đè** lên kết quả cũ. Thay vào đó:
 
 1. **Báo cáo Giao diện HTML Độc Lập**:
-   - Được lưu tại `tests/load/reports/<scenario>-<YYYY-MM-DDTHH-mm-ss>.html`.
+   - Được lưu tại `tests/load/reports/<scenario>/<scenario>-<timestamp>.html`.
    - Tự chứa 100% (nhúng inline CSS, font, không phụ thuộc internet).
    - Hiển thị các thẻ chỉ số KPI, phân phối chi tiết độ trễ HTTP (`min`, `p50`, `avg`, `p90`, `p95`, `p99`, `max`), tỷ lệ lỗi và danh sách Assertions.
 
 2. **Báo cáo Dữ liệu JSON Raw**:
-   - Được lưu tại `tests/load/reports/<scenario>-<YYYY-MM-DDTHH-mm-ss>.json`.
+   - Được lưu tại `tests/load/reports/<scenario>/<scenario>-<timestamp>.json`.
    - Chứa toàn bộ time-series metrics dùng cho việc vẽ biểu đồ hoặc import vào các công cụ phân tích khác.
 
-3. **Bảng Lịch Sử Chạy Test Tập Trung ([history.md](./reports/history.md))**:
-   - Script `append-history.mjs` tự động nối thêm (append) 1 dòng tóm tắt hiệu năng vào bảng tổng hợp sau mỗi lần chạy test:
-   ```markdown
-   | `2026-09-22T13-15-30` | **04b-write-starvation** | 120 | 74,858 | 2994.0 | 35.22ms | N/A | 0.00% | [`04b-write-starvation-...html`](./04b-write-starvation-...html) |
-   ```
+3. **Lịch Sử Kiểm Thử Riêng Biệt Từng Kịch Bản (Scenario Benchmark History)**:
+   - Được lưu tại `tests/load/reports/<scenario>/history.md`.
+   - Mỗi kịch bản sở hữu một bảng lịch sử chuyên biệt, cô lập các lần chạy và so sánh trực tiếp cả hai cấu hình `BASELINE` và `WAN` của riêng kịch bản đó mà không bị pha lẫn với các bài test khác.
+
+4. **Bảng Điều Phối Trung Tâm ([Benchmark Master Index](./reports/README.md))**:
+   - Được duy trì tự động tại [tests/load/reports/README.md](./reports/README.md) theo [ADR-0012](../../docs/adr/0012-per-scenario-performance-reports-and-benchmark-indexing.md).
+   - Tự động hiển thị snapshot lần chạy gần nhất của **Latest Baseline** và **Latest WAN** cho mọi kịch bản, đóng vai trò executive dashboard toàn diện cho cả test harness.
 
 ---
 
@@ -208,9 +275,10 @@ npm run test:load:verify
 ```
 
 ### 4. Xem báo cáo & Lịch sử kiểm thử:
-- Mở trực tiếp các file `.html` mới nhất trong thư mục `tests/load/reports/` trên trình duyệt để phân tích:
+- Truy cập [Benchmark Master Index](./reports/README.md) để xem bảng điều phối tổng thể và snapshot mới nhất (cả Baseline và WAN) của tất cả kịch bản.
+- Mở trực tiếp các file `.html` trong từng thư mục kịch bản `tests/load/reports/<scenario>/` trên trình duyệt để phân tích:
   - **Khối thông số bài test (Test Specification & Workload Profile)**: Điểm tiếp nhận tải (Target Ingress), tầng kiến trúc kiểm thử, mã ADR đối chiếu, các giai đoạn tải (Stages/VUs), thời lượng chạy và phân loại tải.
   - **Bảng đối soát tiêu chuẩn SLA (SLA & Threshold Criteria)**: Trạng thái Đạt/Vi phạm (`PASS` / `VIOLATED`) của từng ngưỡng hiệu năng (`p95`, `p99`, `fail_rate`).
   - Biểu đồ phân phối độ trễ và các chỉ số đo lường chi tiết.
-- File `tests/load/reports/history.md` tự động lập chỉ mục lịch sử chạy với đầy đủ các cột: `Timestamp`, `Scenario`, `Target`, `Duration`, `VUs Max`, `Total Reqs`, `Throughput (RPS)`, `Latency p95`, `Latency p99`, `Fail Rate`, `SLA Status`, `Report File`.
+- File `tests/load/reports/<scenario>/history.md` tự động lập chỉ mục lịch sử chạy của riêng kịch bản đó với đầy đủ các cột: `Timestamp`, `Profile`, `Target`, `Duration`, `VUs Max`, `Total Reqs`, `Throughput (RPS)`, `Latency Avg`, `Latency p95`, `Latency p99`, `Latency Max`, `Fail Rate`, `SLA Status`, `Report File`.
 

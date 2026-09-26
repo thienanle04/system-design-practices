@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { LB_URL, THRESHOLDS, SUMMARY_TREND_STATS } from '../config.js';
+import { LB_URL, THRESHOLDS, SUMMARY_TREND_STATS, getRampingStages, VUS_PROFILE } from '../config.js';
 import { createSummaryHandler } from '../utils/reporter.js';
 
 export const options = {
@@ -9,11 +9,7 @@ export const options = {
     write_steady_throughput: {
       executor: 'ramping-vus',
       startVUs: 5,
-      stages: [
-        { duration: '5s', target: 20 },
-        { duration: '15s', target: 40 },
-        { duration: '5s', target: 0 },
-      ],
+      stages: getRampingStages(VUS_PROFILE.WRITE_STEADY),
       gracefulRampDown: '2s',
     },
   },
@@ -39,7 +35,10 @@ export default function (data, vuContext) {
   });
 
   const res = http.post(`${LB_URL}/api/v1/urls`, payload, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': 'paid_demo_key',
+    },
     tags: { name: 'Create_Short_URL' },
   });
 
