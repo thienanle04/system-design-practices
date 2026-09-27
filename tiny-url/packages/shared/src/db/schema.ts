@@ -40,6 +40,7 @@ export const urlClicks = pgTable('url_clicks', {
   return {
     shortCodeIdx: index('idx_url_clicks_short_code').on(table.shortCode),
     clickedAtIdx: index('idx_url_clicks_clicked_at').on(table.clickedAt),
+    codeClickedAtIdx: index('idx_url_clicks_code_clicked').on(table.shortCode, table.clickedAt),
   };
 });
 

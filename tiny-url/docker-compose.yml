@@ -64,6 +64,12 @@ services:
       CLUSTER_ID: 4L622nShTUiBen8hkUZAJA
     volumes:
       - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   kgs-service:
     <<: *default-logging
@@ -97,13 +103,19 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       KAFKA_BROKERS: kafka:9092
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'fetch(\"http://localhost:3000/health\").then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
 
   url-service-2:
     <<: *default-logging
@@ -120,13 +132,19 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       KAFKA_BROKERS: kafka:9092
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'fetch(\"http://localhost:3000/health\").then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
 
   analytics-service:
     <<: *default-logging
@@ -143,7 +161,7 @@ services:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
 
   load-balancer:
     <<: *default-logging
@@ -157,8 +175,10 @@ services:
     volumes:
       - ./infra/nginx/lb.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - url-service-1
-      - url-service-2
+      url-service-1:
+        condition: service_healthy
+      url-service-2:
+        condition: service_healthy
 
   mock-cdn:
     <<: *default-logging

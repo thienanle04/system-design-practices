@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS url_clicks (
 
 CREATE INDEX IF NOT EXISTS idx_url_clicks_short_code ON url_clicks (short_code);
 CREATE INDEX IF NOT EXISTS idx_url_clicks_clicked_at ON url_clicks (clicked_at);
+CREATE INDEX IF NOT EXISTS idx_url_clicks_code_clicked ON url_clicks (short_code, clicked_at DESC);
 
 CREATE TABLE IF NOT EXISTS url_analytics_daily (
     id BIGSERIAL PRIMARY KEY,

@@ -57,16 +57,25 @@ export function createKafkaConsumer(groupId: string): Consumer {
   return k.consumer({ groupId });
 }
 
+let cachedKafkaHealth: { status: 'UP' | 'DOWN'; error?: string; timestamp: number } | null = null;
+const KAFKA_HEALTH_CACHE_TTL_MS = 15000;
+
 export async function checkKafkaHealth(): Promise<{ status: 'UP' | 'DOWN'; error?: string }> {
+  const now = Date.now();
+  if (cachedKafkaHealth && now - cachedKafkaHealth.timestamp < KAFKA_HEALTH_CACHE_TTL_MS) {
+    return { status: cachedKafkaHealth.status, error: cachedKafkaHealth.error };
+  }
+
   try {
     const k = getKafkaInstance();
     const admin = k.admin();
     await admin.connect();
     await admin.listTopics();
     await admin.disconnect();
+    cachedKafkaHealth = { status: 'UP', timestamp: now };
     return { status: 'UP' };
   } catch (err: any) {
+    cachedKafkaHealth = { status: 'DOWN', error: err.message, timestamp: now };
     return { status: 'DOWN', error: err.message };
   }
 }
-
