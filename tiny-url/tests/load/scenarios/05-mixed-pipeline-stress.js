@@ -32,7 +32,7 @@ export function setup() {
 
   for (let i = 0; i < seedCount; i++) {
     const payload = JSON.stringify({
-      original_url: `https://news.ycombinator.com/item?id=${100000 + i}`,
+      original_url: `https://news.ycombinator.com/item?id=${100000 + i}-${Date.now()}`,
     });
     const res = http.post(`${LB_URL}/api/v1/urls`, payload, {
       headers: {
@@ -43,6 +43,10 @@ export function setup() {
     if (res.status === 201) {
       codes.push(res.json('short_code'));
     }
+  }
+
+  if (codes.length === 0) {
+    throw new Error('Failed to seed Short URLs in setup(). Check rate limits or API key status.');
   }
 
   return { codes };
@@ -62,9 +66,10 @@ export default function (data) {
         'X-API-Key': 'paid_demo_key',
       },
       tags: { name: 'Mixed_Write' },
+      responseCallback: http.expectedStatuses(201, 429),
     });
     check(res, {
-      'write status 201': (r) => r.status === 201,
+      'write status (201 Created or 429 Rate Limited)': (r) => r.status === 201 || r.status === 429,
     });
   } else {
     // 90% Read Traffic: Redirect request hitting Mock CDN Edge

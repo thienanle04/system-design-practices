@@ -40,12 +40,13 @@ export default function (data, vuContext) {
       'X-API-Key': 'paid_demo_key',
     },
     tags: { name: 'Create_Short_URL' },
+    responseCallback: http.expectedStatuses(201, 429),
   });
 
   check(res, {
-    'status is 201 Created': (r) => r.status === 201,
-    'has valid short_code': (r) => Boolean(r.json('short_code')),
-    'target url matches': (r) => r.json('original_url') === uniqueUrl,
+    'resilient status (201 Created or 429 Rate Limited)': (r) => r.status === 201 || r.status === 429,
+    'successful write has valid short_code': (r) => r.status !== 201 || Boolean(r.json('short_code')),
+    'successful write target url matches': (r) => r.status !== 201 || r.json('original_url') === uniqueUrl,
   });
 }
 

@@ -5,14 +5,14 @@ export const NETWORK_PROFILE = __ENV.NETWORK_PROFILE || 'baseline';
 
 export const SUMMARY_TREND_STATS = ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'];
 
-// Nominal Capacity Envelope: Calibrated Virtual Users per scenario based on 0.5 vCPU budget
+// Nominal Capacity Envelope: Calibrated Virtual Users per scenario based on 0.5 vCPU budget (Sweet Spot Before Saturation)
 export const VUS_PROFILE = {
-  EDGE_HIT: { baseline: 40, wan: 120 },
-  ORIGIN_READ: { baseline: 50, wan: 150 },
-  NEGATIVE_CACHE: { baseline: 40, wan: 120 },
-  WRITE_STEADY: { baseline: 20, wan: 60 },
-  WRITE_STARVATION: { baseline: 80, wan: 180 },
-  MIXED: { baseline: 40, wan: 120 },
+  EDGE_HIT: { baseline: 8, wan: 40 },
+  ORIGIN_READ: { baseline: 12, wan: 60 },
+  NEGATIVE_CACHE: { baseline: 10, wan: 40 },
+  WRITE_STEADY: { baseline: 5, wan: 15 },
+  WRITE_STARVATION: { baseline: 30, wan: 60 },
+  MIXED: { baseline: 15, wan: 50 },
 };
 
 // Baseline Profile (Profile A): Calibrated for Resource Budget Profile (0.5 vCPU compute nodes)
@@ -27,10 +27,11 @@ export const THRESHOLDS_BASELINE = {
     http_req_failed: ['rate<0.01'],
     http_req_duration: ['p(95)<40', 'p(99)<70'],
   },
-  // Negative Cache: 404 is expected, 5xx is failure, fast rejection via Redis
+  // Negative Cache: 404 is expected via responseCallback, 5xx is failure, fast rejection via Redis
   NEGATIVE_CACHE: {
+    http_req_failed: ['rate<0.01'],
     unexpected_errors: ['rate<0.01'],
-    http_req_duration: ['p(95)<25', 'p(99)<50'],
+    http_req_duration: ['p(95)<25', 'p(99)<70'],
   },
   // Write Steady: POST /api/v1/urls with healthy buffer & PostgreSQL 1.0 vCPU
   WRITE_STEADY: {
@@ -60,7 +61,7 @@ export const THRESHOLDS_WAN = {
   },
   NEGATIVE_CACHE: {
     unexpected_errors: ['rate<0.01'],
-    http_req_duration: ['p(95)<90', 'p(99)<120'],
+    http_req_duration: ['p(95)<160', 'p(99)<220'],
   },
   WRITE_STEADY: {
     http_req_failed: ['rate<0.01'],

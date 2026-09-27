@@ -31,7 +31,10 @@ export function setup() {
     original_url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP',
   });
   const params = {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': 'paid_demo_key',
+    },
   };
 
   const createRes = http.post(`${LB_URL}/api/v1/urls`, payload, params);

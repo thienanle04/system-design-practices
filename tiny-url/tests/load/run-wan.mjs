@@ -83,6 +83,9 @@ let exitCode = 0;
 
 try {
   checkResourceBudgetProfile();
+  try {
+    execSync('docker exec tinyurl-redis redis-cli EVAL "for _,k in ipairs(redis.call(\'keys\',\'ratelimit:*\')) do redis.call(\'del\',k) end" 0', { stdio: 'ignore' });
+  } catch (_) {}
   setupNetem();
 
   console.log(`\n🚀 Launching k6 benchmark (Profile: WAN): [${scenarioFile}] in Docker network...`);

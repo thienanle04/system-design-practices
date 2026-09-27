@@ -35,7 +35,10 @@ export function setup() {
       original_url: `https://example.org/resource/${i}-${Date.now()}`,
     });
     const res = http.post(`${LB_URL}/api/v1/urls`, payload, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': 'paid_demo_key',
+      },
     });
     if (res.status === 201) {
       codes.push(res.json('short_code'));

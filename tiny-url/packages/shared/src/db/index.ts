@@ -11,7 +11,7 @@ export function getDbPool(): pg.Pool {
     const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/tinyurl';
     pool = new Pool({
       connectionString,
-      max: 20,
+      max: parseInt(process.env.PG_POOL_MAX || '50', 10),
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
     });

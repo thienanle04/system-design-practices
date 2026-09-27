@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { spawnSync } from 'child_process';
+import { spawnSync, execSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -36,6 +36,10 @@ if (!fs.existsSync(scenarioReportsDir)) {
 }
 
 checkResourceBudgetProfile();
+
+try {
+  execSync('docker exec tinyurl-redis redis-cli EVAL "for _,k in ipairs(redis.call(\'keys\',\'ratelimit:*\')) do redis.call(\'del\',k) end" 0', { stdio: 'ignore' });
+} catch (_) {}
 
 console.log(`\n🚀 Launching k6 benchmark: [${scenarioFile}] in Docker network...`);
 

@@ -192,6 +192,38 @@ export async function setApiKeyInCache(
   }
 }
 
+const RATE_LIMIT_LUA = `
+local rateKey = KEYS[1]
+local quotaKey = KEYS[2]
+local limitRate = tonumber(ARGV[1])
+local limitQuota = tonumber(ARGV[2])
+local rateExpire = tonumber(ARGV[3])
+local quotaExpire = tonumber(ARGV[4])
+
+local currentRate = tonumber(redis.call('get', rateKey) or '0')
+if currentRate >= limitRate then
+  local currentQuota = tonumber(redis.call('get', quotaKey) or '0')
+  return { 0, 'rate_limit', currentRate + 1, currentQuota }
+end
+
+local currentQuota = tonumber(redis.call('get', quotaKey) or '0')
+if currentQuota >= limitQuota then
+  return { 0, 'quota', currentRate, currentQuota + 1 }
+end
+
+currentRate = redis.call('incr', rateKey)
+if currentRate == 1 then
+  redis.call('expire', rateKey, rateExpire)
+end
+
+currentQuota = redis.call('incr', quotaKey)
+if currentQuota == 1 then
+  redis.call('expire', quotaKey, quotaExpire)
+end
+
+return { 1, 'ok', currentRate, currentQuota }
+`;
+
 export async function checkRateLimitAndQuota(
   identifier: string,
   tier: AccountTier
@@ -208,50 +240,40 @@ export async function checkRateLimitAndQuota(
   const rateKey = `${REDIS_KEYS.RATE_LIMIT_PREFIX}${tier}:${identifier}:${minuteSlot}`;
   const quotaKey = `${REDIS_KEYS.QUOTA_PREFIX}${tier}:${identifier}:${daySlot}`;
 
-  const pipe = redis.pipeline();
-  pipe.incr(rateKey);
-  pipe.expire(rateKey, 65);
-  pipe.incr(quotaKey);
-  pipe.expire(quotaKey, resetQuotaSeconds + 60);
-
-  const results = await pipe.exec();
-  const currentRate = results && results[0] && results[0][1] ? Number(results[0][1]) : 1;
-  const currentQuota = results && results[2] && results[2][1] ? Number(results[2][1]) : 1;
-
   const config = RATE_LIMIT_TIERS[tier];
   const limitRate = config.rateLimitPerMinute;
   const limitQuota = config.dailyQuota;
 
+  const rawResult = (await redis.eval(
+    RATE_LIMIT_LUA,
+    2,
+    rateKey,
+    quotaKey,
+    limitRate,
+    limitQuota,
+    65,
+    resetQuotaSeconds + 60
+  )) as [number, string, number, number];
+
+  const [allowedFlag, reason, currentRate, currentQuota] = rawResult;
+  const allowed = allowedFlag === 1;
+
   const remainingRate = Math.max(0, limitRate - currentRate);
   const remainingQuota = Math.max(0, limitQuota - currentQuota);
 
-  if (currentRate > limitRate) {
+  if (!allowed) {
+    const isQuota = reason === 'quota';
     return {
       allowed: false,
-      reason: 'rate_limit',
+      reason: isQuota ? 'quota' : 'rate_limit',
       currentRate,
       limitRate,
-      remainingRate: 0,
+      remainingRate: isQuota ? remainingRate : 0,
       resetRateSeconds,
       currentQuota,
       limitQuota,
-      remainingQuota,
-      retryAfterSeconds: resetRateSeconds,
-    };
-  }
-
-  if (currentQuota > limitQuota) {
-    return {
-      allowed: false,
-      reason: 'quota',
-      currentRate,
-      limitRate,
-      remainingRate,
-      resetRateSeconds,
-      currentQuota,
-      limitQuota,
-      remainingQuota: 0,
-      retryAfterSeconds: resetQuotaSeconds,
+      remainingQuota: isQuota ? 0 : remainingQuota,
+      retryAfterSeconds: isQuota ? resetQuotaSeconds : resetRateSeconds,
     };
   }
 

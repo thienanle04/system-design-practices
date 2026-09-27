@@ -38,6 +38,7 @@ export default function () {
   const res = http.get(`${LB_URL}/${code}`, {
     redirects: 0,
     tags: { name: 'Negative_Cache_Miss' },
+    responseCallback: http.expectedStatuses(404),
   });
 
   const isExpected404 = res.status === 404;

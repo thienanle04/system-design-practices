@@ -44,6 +44,7 @@ export default function () {
   const res = http.post(`${LB_URL}/api/v1/urls`, payload, {
     headers,
     tags: { name: isGuestCheck ? 'Guest_RateLimit_Check' : 'Burst_Create_Short_URL' },
+    responseCallback: http.expectedStatuses(201, 429, 503),
   });
 
   if (isGuestCheck) {

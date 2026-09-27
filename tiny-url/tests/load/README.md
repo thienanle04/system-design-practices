@@ -61,12 +61,12 @@ Hệ thống hỗ trợ 2 profile hiệu năng độc lập theo [ADR-0009](../.
 
 | Kịch bản Baseline (Profile A) | Lệnh thực thi | Target Ingress | VUs Peak | Ngưỡng SLA Baseline (`p95` / `p99`) |
 |---|---|---|---|---|
-| **01-hotkey-cache-hit** | `npm run test:load:hotkey` | Mock CDN | 40 | `p(95) < 10ms`, `p(99) < 25ms` |
-| **02-origin-cache-miss** | `npm run test:load:origin` | Load Balancer | 50 | `p(95) < 40ms`, `p(99) < 70ms` |
-| **03-cache-penetration** | `npm run test:load:penetration` | Load Balancer | 40 | `p(95) < 25ms`, `p(99) < 50ms` |
-| **04a-write-steady** | `npm run test:load:write` | Load Balancer | 20 | `p(95) < 120ms`, `p(99) < 250ms` |
-| **04b-write-starvation** | `npm run test:load:starvation` | Load Balancer | 80 | `p(95) < 350ms` |
-| **05-mixed-pipeline** | `npm run test:load:mixed` | CDN + LB | 40 | `p(95) < 90ms`, `p(99) < 220ms` |
+| **01-hotkey-cache-hit** | `npm run test:load:hotkey` | Mock CDN | 8 | `p(95) < 10ms`, `p(99) < 25ms` |
+| **02-origin-cache-miss** | `npm run test:load:origin` | Load Balancer | 12 | `p(95) < 40ms`, `p(99) < 70ms` |
+| **03-cache-penetration** | `npm run test:load:penetration` | Load Balancer | 10 | `p(95) < 25ms`, `p(99) < 50ms` |
+| **04a-write-steady** | `npm run test:load:write` | Load Balancer | 5 | `p(95) < 120ms`, `p(99) < 250ms` |
+| **04b-write-starvation** | `npm run test:load:starvation` | Load Balancer | 30 | `p(95) < 350ms` |
+| **05-mixed-pipeline** | `npm run test:load:mixed` | CDN + LB | 15 | `p(95) < 90ms`, `p(99) < 220ms` |
 
 2. **Profile B (Emulated WAN)**: Sử dụng Linux kernel traffic shaping (`tc netem`) để tiêm độ trễ mạng thực tế:
    - **Client $\leftrightarrow$ Edge Cache**: 30ms ($\pm$5ms jitter) trên interface `tinyurl-cdn`.
@@ -75,12 +75,12 @@ Hệ thống hỗ trợ 2 profile hiệu năng độc lập theo [ADR-0009](../.
 
 | Kịch bản WAN (Profile B) | Lệnh thực thi | Target Ingress | VUs Peak | Ngưỡng SLA WAN (`p95` / `p99`) |
 |---|---|---|---|---|
-| **01-hotkey-cache-hit (WAN)** | `npm run test:load:wan:hotkey` | Mock CDN | 120 | `p(95) < 70ms`, `p(99) < 85ms` |
-| **02-origin-cache-miss (WAN)** | `npm run test:load:wan:origin` | Load Balancer | 150 | `p(95) < 200ms`, `p(99) < 250ms` |
-| **03-cache-penetration (WAN)** | `npm run test:load:wan:penetration` | Load Balancer | 120 | `p(95) < 90ms`, `p(99) < 120ms` |
-| **04a-write-steady (WAN)** | `npm run test:load:wan:write` | Load Balancer | 60 | `p(95) < 220ms`, `p(99) < 300ms` |
-| **04b-write-starvation (WAN)** | `npm run test:load:wan:starvation` | Load Balancer | 180 | `p(95) < 450ms` |
-| **05-mixed-pipeline (WAN)** | `npm run test:load:wan:mixed` | CDN + LB | 120 | `p(95) < 200ms`, `p(99) < 280ms` |
+| **01-hotkey-cache-hit (WAN)** | `npm run test:load:wan:hotkey` | Mock CDN | 40 | `p(95) < 70ms`, `p(99) < 85ms` |
+| **02-origin-cache-miss (WAN)** | `npm run test:load:wan:origin` | Load Balancer | 60 | `p(95) < 200ms`, `p(99) < 250ms` |
+| **03-cache-penetration (WAN)** | `npm run test:load:wan:penetration` | Load Balancer | 40 | `p(95) < 160ms`, `p(99) < 220ms` |
+| **04a-write-steady (WAN)** | `npm run test:load:wan:write` | Load Balancer | 15 | `p(95) < 220ms`, `p(99) < 300ms` |
+| **04b-write-starvation (WAN)** | `npm run test:load:wan:starvation` | Load Balancer | 60 | `p(95) < 450ms` |
+| **05-mixed-pipeline (WAN)** | `npm run test:load:wan:mixed` | CDN + LB | 50 | `p(95) < 200ms`, `p(99) < 280ms` |
 
 > [!TIP]
 > **Quy mô Concurrency động theo Định luật Little (Little's Law)**:

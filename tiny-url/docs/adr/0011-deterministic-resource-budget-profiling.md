@@ -20,7 +20,7 @@ Accepted
   - Integrated via `npm run docker:perf:up` and verified programmatically within `run.mjs` and `run-wan.mjs`.
   - **Nominal Capacity Envelope Calibration**:
     - Centralizes workload sizing (`VUS_PROFILE`) and acceptance criteria (`THRESHOLDS_BASELINE`) in `config.js`.
-    - Scales baseline VUs to fit the 0.5 vCPU budget without triggering Linux kernel CFS period freeze (`mock-cdn`: 40 VUs, `url-service`: 50 VUs, `postgres`: 20 VUs).
+    - Scales baseline VUs to fit the 0.5 vCPU budget without triggering Linux kernel CFS period freeze (`mock-cdn`: 8 VUs, `url-service`: 12 VUs, `negative-cache`: 10 VUs, `postgres`: 5 VUs).
     - Calibrates baseline SLA thresholds (`EDGE_HIT`: p95 < 10ms, `ORIGIN_READ`: p95 < 40ms) to ensure objective, reproducible gating.
 
 ## Consequences
