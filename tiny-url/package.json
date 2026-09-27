@@ -8,6 +8,9 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "test": "vitest run packages/shared apps/url-service",
+    "test:watch": "vitest packages/shared apps/url-service",
+    "test:integration": "vitest run tests/integration",
     "docker:perf:up": "docker compose -f docker-compose.yml -f docker-compose.resources.yml up -d --build",
     "docker:perf:down": "docker compose -f docker-compose.yml -f docker-compose.resources.yml down",
     "dev:api": "npm run dev --workspace=apps/url-service",
@@ -29,7 +32,8 @@
     "test:load:wan:mixed": "node tests/load/run-wan.mjs 05-mixed-pipeline-stress"
   },
   "devDependencies": {
+    "@types/node": "^20.12.7",
     "typescript": "^5.4.5",
-    "@types/node": "^20.12.7"
+    "vitest": "^2.1.9"
   }
 }
