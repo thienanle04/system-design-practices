@@ -1,0 +1,114 @@
+name: TinyURL CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'tiny-url/**'
+      - '.github/workflows/tiny-url-ci.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'tiny-url/**'
+      - '.github/workflows/tiny-url-ci.yml'
+
+concurrency:
+  group: tiny-url-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-quality:
+    name: Code Quality & Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tiny-url
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: tiny-url/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck and Build all workspaces
+        run: npm run build
+
+      - name: Run Unit Tests
+        run: npm test
+
+      - name: Verify Dockerfile builds
+        run: |
+          docker build -t tinyurl-url-service:ci -f apps/url-service/Dockerfile .
+          docker build -t tinyurl-kgs-service:ci -f apps/kgs-service/Dockerfile .
+          docker build -t tinyurl-analytics-service:ci -f apps/analytics-service/Dockerfile .
+
+  integration-tests:
+    name: Cluster Integration Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tiny-url
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: tiny-url/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start Docker Compose cluster with Resource Budget Profile
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.resources.yml up -d --build
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for live cluster at http://localhost:8080/health..."
+          for i in {1..60}; do
+            if curl -s -f http://localhost:8080/health > /dev/null 2>&1; then
+              echo "Cluster is healthy and accepting traffic after ${i} seconds."
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Run E2E Integration Tests
+        run: npm run test:integration
+        env:
+          TEST_BASE_URL: http://localhost:8080
+
+      - name: Dump bounded container logs on failure (anti-overflow)
+        if: failure()
+        run: |
+          mkdir -p ci-logs
+          docker compose logs --tail=200 --timestamps > ci-logs/docker-compose-failed.log
+          ls -lh ci-logs/docker-compose-failed.log
+
+      - name: Upload diagnostic logs artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiny-url-docker-logs
+          path: tiny-url/ci-logs/docker-compose-failed.log
+          retention-days: 7
+
+      - name: Teardown cluster
+        if: always()
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.resources.yml down -v
